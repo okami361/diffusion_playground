@@ -22,6 +22,11 @@ class GAN(nn.Module):
     def discriminator(self, x):
         y = self.model_discriminator(x)
         return y
+    
+    def discriminator_features(self, x):
+        features = self.model_discriminator.extract_feature_maps(x)
+        return features
+
 
 class Discriminator(nn.Module):
     def __init__(self, pretrained=True):
@@ -29,19 +34,26 @@ class Discriminator(nn.Module):
         
         # Load a ResNet50 backbone, pretrained on ImageNet
         self.resnet = models.resnet50(pretrained=pretrained)
+        
+        # Remove the original classification layer
+        self.feature_extractor = nn.Sequential(*list(self.resnet.children())[:-2])  # Up to the last convolutional block
         num_features = self.resnet.fc.in_features
-        self.resnet.fc = nn.Identity()  # remove the original classification layer
         
         # Add your own classification head for real/fake
         self.classifier = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),  # Perform global average pooling
+            nn.Flatten(),                 # Flatten to a vector
             nn.Linear(num_features, 1),
             nn.Sigmoid()
         )
 
     def forward(self, x):
-        # Extract features from ResNet (without its original final layer)
-        features = self.resnet(x)
+        # Extract feature maps
+        feature_maps = self.feature_extractor(x)
         
-        # Forward through your custom classification layer
-        out = self.classifier(features)
-        return out
+        # Pass through classification head
+        y = self.classifier(feature_maps)
+        return y
+
+    def extract_feature_maps(self, x):
+        return self.feature_extractor(x)
