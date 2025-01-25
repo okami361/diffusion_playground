@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
-import VAE.VAE
+from VAE import VAE
 
 class GAN(nn.Module):
     def __init__(self, config):
