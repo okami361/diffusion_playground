@@ -22,7 +22,3 @@ def generate_config(exp_number,name, output_path, dataset, description, image_re
         'test_loss': 9999
     }
     return log_object
-
-def mount_drive():
-    from google.colab import drive
-    drive.mount('/content/drive')
