@@ -1,0 +1,64 @@
+import torch
+from torch import nn
+import torch.nn.functional as F
+
+class ConvEncoder(nn.Module):
+    def __init__(self, config):
+        super(ConvEncoder, self).__init__()
+        self.config = config
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=4, stride=2, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
+
+        self.conv_mu = nn.Conv2d(in_channels=64, out_channels= self.config['latent_channels'], kernel_size=3, stride=1, padding=1)
+        self.conv_logvar = nn.Conv2d(in_channels=64, out_channels= self.config['latent_channels'], kernel_size=3, stride=1, padding=1)
+
+    def forward(self, x):
+        x = F.relu(self.bn1(self.conv1(x))) # 160 -> 80
+        x = F.relu(self.bn2(self.conv2(x))) # 80 -> 40
+
+        mu = self.conv_mu(x)
+        logvar = self.conv_logvar(x)
+        return mu, logvar
+
+class ConvDecoder(nn.Module):
+    def __init__(self, config):
+        super(ConvDecoder, self).__init__()
+        self.config = config
+
+        self.deconv1 = nn.ConvTranspose2d(in_channels=3, out_channels=32, kernel_size=4, stride=2, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.deconv2 = nn.ConvTranspose2d(in_channels=32, out_channels=3, kernel_size=4, stride=2, padding=1)
+
+    def forward(self, z):
+        x = F.relu(z)
+        x = F.relu(self.bn1(self.deconv1(x))) # 40 -> 80
+        x = torch.sigmoid(self.deconv2(x)) # 160 -> 80
+        return x
+
+class VAE(nn.Module):
+    def __init__(self, config):
+        super(VAE, self).__init__()
+        self.encoder = ConvEncoder(config)
+        self.decoder = ConvDecoder(config)
+        self.step_control_nodes = None
+
+    def encode(self, x):
+        mu, logvar = self.encoder(x)
+        return mu, logvar
+
+    def reparameterize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+
+    def decode(self, z):
+        return self.decoder(z)
+
+    def forward(self, x):
+        mu, logvar = self.encode(x)
+        z = self.reparameterize(mu, logvar)
+        recon_x = self.decode(z)
+        return recon_x, mu, logvar
+    
